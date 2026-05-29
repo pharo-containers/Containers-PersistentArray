@@ -41,7 +41,7 @@ CTPersistentArrayBenchmarker >> benchmark [
 ]
 
 { #category : 'as yet unclassified' }
-CTPersistentArrayBenchmarker >> blockToExcute: aBlock [
+CTPersistentArrayBenchmarker >> blockToExecute: aBlock [
 
 	block := aBlock
 ]

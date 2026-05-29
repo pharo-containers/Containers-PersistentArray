@@ -77,13 +77,13 @@ CTPersistentArrayBenchmark >> runInsertionForSize: size [
     benchmarker := CTPersistentArrayBenchmarker new.
     
     "Benchmark Normal Array"
-    benchmarker blockToExcute: [ 
+    benchmarker blockToExecute: [ 
         1 to: size do: [ :i | normalArray at: i put: i * 2 ] 
     ].
     resultNormal := benchmarker benchmark.
     
     "Benchmark Persistent Array"
-	benchmarker blockToExcute: [ 
+	benchmarker blockToExecute: [ 
    	 	1 to: size do: [ :i | 
         	persistentArray at: i put: i * 2 
     	] 
@@ -152,7 +152,7 @@ CTPersistentArrayBenchmark >> runRandomBenchmark [
 
 { #category : 'benchmarking' }
 CTPersistentArrayBenchmark >> runShopInventorySimulation [
-    | inventorySize transactions normalInventory persistentInventory benchmarker resultNormal resultPersistent |
+    | inventorySize transactions normalInventory persistentInventory benchmarker resultNormal resultPersistent benchmarkBlock |
     
     inventorySize := 10000.
     transactions := 50000.
@@ -163,46 +163,61 @@ CTPersistentArrayBenchmark >> runShopInventorySimulation [
     persistentInventory buildFrom: normalInventory.
     
     benchmarker := CTPersistentArrayBenchmarker new.
-    
-    "Normal Array Simulation (The old data is destroyed on every sale)"
-    benchmarker blockToExcute: [ 
+    benchmarkBlock := [ :collection |
         1 to: transactions do: [ :saleIndex | 
             | itemID currentStock |
             itemID := (saleIndex \\ inventorySize) + 1. 
-            currentStock := normalInventory at: itemID.
-            normalInventory at: itemID put: currentStock - 1
+            currentStock := collection at: itemID.
+            collection at: itemID put: currentStock - 1
         ] 
     ].
+
+    "Normal Array Simulation (The old data is destroyed on every sale)"
+    benchmarker blockToExecute: [ benchmarkBlock value: normalInventory ].
     resultNormal := benchmarker benchmark.
     
    "Persistent Array Simulation (Building the immutable tree)"
-    benchmarker blockToExcute: [ 
-        1 to: transactions do: [ :saleIndex | 
-            | itemID currentStock |
-            itemID := (saleIndex \\ inventorySize) + 1.
-            currentStock := persistentInventory at: itemID.
-            
-            "The update automatically creates the new tree version internally"
-            persistentInventory at: itemID put: currentStock - 1.
-        ] 
-    ].
+    benchmarker blockToExecute: [ benchmarkBlock value: persistentInventory ].
     resultPersistent := benchmarker benchmark.
     
-    "Report Results"
-    Transcript 
-        show: '--- Shop Simulation (10k Items, 50k Sales) ---'; cr;
-        show: 'Normal Array -> Time: '; show: resultNormal executionTime asString; show: 'µs | GC: '; show: resultNormal relativeGCTime; cr;
-        show: 'Persistent Array -> Time: '; show: resultPersistent executionTime asString; show: 'µs | GC: '; show: resultPersistent relativeGCTime; cr; cr.
-	 "Prove the Time Travel"
-    Transcript 
-        show: '--- Audit Trail for Item 42 ---'; cr;
-        show: 'Stock before sales (Version 0): '; 
-        show: (persistentInventory at: 42 version: 0) asString; cr;
-        
-        show: 'Stock after sales (Version '; 
-        show: persistentInventory latestVersion asString; 
-        show: '): '; 
-        show: (persistentInventory at: 42) asString; cr; cr.
+   ^ { resultNormal . resultPersistent }
+]
+
+{ #category : 'benchmarks' }
+CTPersistentArrayBenchmark >> runTimeTravelComparisonSize: arraySize updates: numUpdates [
+	| benchmarker benchmarkBlock normalArray persistentArray historyNormal historyPersistent resultNormal resultPersistent |
+	
+	benchmarker := CTPersistentArrayBenchmarker new.
+	
+	benchmarkBlock := [ :collection :historyList |
+        | current |
+        current := collection.
+        1 to: numUpdates do: [ :i |
+            | nextVersion |
+            nextVersion := current copy. 
+            nextVersion at: (i \\ arraySize + 1) put: i.
+            historyList add: nextVersion.
+            current := nextVersion.
+        ]
+    ].
+	
+	"Normal Array with Full Copy"
+	normalArray := Array new: arraySize.
+    historyNormal := OrderedCollection new: numUpdates + 1.
+    historyNormal add: normalArray.
+    
+    benchmarker blockToExecute: [ benchmarkBlock value: normalArray value: historyNormal ].
+    resultNormal := benchmarker benchmark.
+	
+	"Persistent Array (Path Copying)"
+	persistentArray := CTPersistentArray new buildFrom: (Array new: arraySize).
+    historyPersistent := OrderedCollection new: numUpdates + 1.
+    historyPersistent add: persistentArray.
+    
+    benchmarker blockToExecute: [ benchmarkBlock value: persistentArray value: historyPersistent ].
+    resultPersistent := benchmarker benchmark.
+
+	^ { resultNormal . resultPersistent }
 ]
 
 { #category : 'benchmarking' }
@@ -220,13 +235,13 @@ CTPersistentArrayBenchmark >> runTraversalForSize: size [
     benchmarker := CTPersistentArrayBenchmarker new.
     
     "Benchmark Normal Array"
-    benchmarker blockToExcute: [ 
+    benchmarker blockToExecute: [ 
         1 to: size do: [ :i | normalArray at: i ] 
     ].
     resultNormal := benchmarker benchmark.
     
     "Benchmark Persistent Array"
-    benchmarker blockToExcute: [ 
+    benchmarker blockToExecute: [ 
         1 to: size do: [ :i | persistentArray at: i ] 
     ].
     resultPersistent := benchmarker benchmark.
