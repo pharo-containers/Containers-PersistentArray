@@ -59,11 +59,11 @@ spec
 
 ## Why use Containers-PersistentArray?
 
-Standard mutable Arrays execute incredibly fast O(1) updates, but they are destructive, the previous state is permanently lost. To achieve undo/redo capabilities, developers traditionally have to `deepCopy` the entire array before every mutation, introducing catastrophic O(N) time and memory overheads.
+Standard mutable Arrays execute incredibly fast O(1) updates, but they are destructive, the previous state is permanently lost. To achieve undo/redo capabilities, developers traditionally have to `Copy` the entire array before every mutation, introducing catastrophic O(N) time and memory overheads.
 
 `Containers-PersistentArray` bridges this gap, providing full time-travel history without the massive O(N) copying penalty:
 
-| Operation | Standard Array (No History) | Array + `deepCopy` (With History) | `CTPersistentArray` (Smart History) |
+| Operation | Standard Array (No History) | Array + `Copy` (With History) | `CTPersistentArray` (Smart History) |
 | :--- | :--- | :--- | :--- |
 | Read at index | O(1) | O(1) | **O(log N)** |
 | Write at index | O(1) `destructive` | O(N) `full copy` | **O(log N) `path copy`** |
@@ -75,7 +75,7 @@ Standard mutable Arrays execute incredibly fast O(1) updates, but they are destr
 *   **Guaranteed O(log N) Updates**: Path Copying allocates exactly ⌈log₂ N⌉ new nodes per write, never more.
 *   **Full Version History**: Every `at:put:` returns a new version handle. Old handles remain valid indefinitely.
 *   **Structural Sharing**: Unmodified subtrees are reused across versions, verified with Pharo's `==` identity operator.
-*   **No Hidden O(N) Copies**: Unlike deep-copying, profiling confirms that `Array>>new:` accounts for ≤ 0.8% of CPU time under adversarial load.
+*   **No Hidden O(N) Copies**: Unlike copying the whole array, profiling confirms that `Array>>new:` accounts for ≤ 0.8% of CPU time under adversarial load.
 
 ---
 
@@ -156,14 +156,14 @@ To bypass the biases and observer effects inherent in sampling-based profilers (
 | | $N = 10,000$ | 44 µs (0.00% GC) | 14,443 µs (20.77% GC) | **~328x slower** |
 | | $N = 100,000$ | 391 µs (0.00% GC) | 354,802 µs (65.13% GC) | **~907x slower** |
 | | $N = 1,000,000$ | 4,159 µs (0.00% GC) | 4,441,238 µs (69.37% GC) | **~1,068x slower** |
-| **Real Life Simulation** | 10k items / 50k trans. | 419 µs (0.00% GC) | 128,041 µs (47.64% GC) | **~306x slower** |
+| **Shop Inventory Simulation** | 10k items / 50k trans. | 419 µs (0.00% GC) | 128,041 µs (47.64% GC) | **~306x slower** |
 
 ### Technical Analysis
 
 *   **Complexity Verification**: Results verify strict $O(\log N)$ complexity for both traversal and insertion operations.
 *   **Path-Copying Signature**: The significantly higher relative GC percentages (reaching 69.37%) in write-heavy workloads are the definitive empirical signature of the path-copying algorithm.
 *   **Memory Overhead**: The **69.37% GC rate** for 1,000,000 updates reflects the VM's intensive effort to reclaim short-lived internal nodes generated to preserve immutability.
-*   **Audit Capability**: The **Real Life Simulation** proves the primary value proposition. While a **Normal Array** is destructive and maintains no time-travel history, the persistent implementation allows for instantaneous access to any historical state (e.g., Version 0 vs. Version 50,000) with no manual bookkeeping.
+*   **Audit Capability**: The **Shop Inventory Simulation** proves the primary value proposition. While a **Normal Array** is destructive and maintains no time-travel history, the persistent implementation allows for instantaneous access to any historical state (e.g., Version 0 vs. Version 50,000) with no manual bookkeeping.
 
 ---
 
