@@ -144,7 +144,9 @@ arr2 at: 512. "=> 'final'"
 
 To bypass the biases and observer effects inherent in sampling-based profilers (where the act of recording execution changes the results), this implementation utilizes a custom isolation benchmarker. By using a high-precision microsecond clock and directly querying VM parameters, we capture the true execution time alongside full and incremental Garbage Collection overhead.
 
-### Benchmark Results (Execution Time & GC Overhead)
+<br>
+
+### 1. Standard Operations (Execution & GC Overhead)
 
 | Operation | Scale / Workload | Normal Array | Persistent Array (With History) | Relative Overhead |
 | :--- | :--- | :--- | :--- | :--- |
@@ -164,6 +166,28 @@ To bypass the biases and observer effects inherent in sampling-based profilers (
 *   **Path-Copying Signature**: The significantly higher relative GC percentages (reaching 69.37%) in write-heavy workloads are the definitive empirical signature of the path-copying algorithm.
 *   **Memory Overhead**: The **69.37% GC rate** for 1,000,000 updates reflects the VM's intensive effort to reclaim short-lived internal nodes generated to preserve immutability.
 *   **Audit Capability**: The **Shop Inventory Simulation** proves the primary value proposition. While a **Normal Array** is destructive and maintains no time-travel history, the persistent implementation allows for instantaneous access to any historical state (e.g., Version 0 vs. Version 50,000) with no manual bookkeeping.
+
+> **Reproducibility:** Anyone can verify these numbers. The Shop Inventory Simulation is fully documented and implemented as the `runShopInventorySimulation` method within the `CTPersistentArrayBenchmark` class. Simply execute it in your image to observe the overhead firsthand.
+
+<br><br>
+
+### 2. Time-Travel (History Preservation) Benchmarks
+
+To demonstrate the primary value proposition of `CTPersistentArray`, we benchmarked a "Time-Travel" scenario. In this test, every state of the collection must be preserved after an update. The standard `Array` requires a full copy for every transaction to support Time Travel, whereas `CTPersistentArray` achieves this through path-copying.
+
+| Scenario (Size / Updates) | Normal Array (Full Copy) | Persistent Array (Path Copying) | Outcome |
+| :--- | :--- | :--- | :--- |
+| Size: 100 / Updates: 100 | 27 μs (0.00% GC) | 95 μs (0.00% GC) | Normal Array is **~3.5x faster** |
+| Size: 1,000 / Updates: 100 | 81 μs (0.00% GC) | 103 μs (0.00% GC) | Normal Array is **~1.2x faster** |
+| Size: 1,000 / Updates: 1,000 | 3,968 μs (75.60% GC) | 939 μs (0.00% GC) | Persistent is **~4x faster** |
+| Size: 10,000 / Updates: 1,000 | 254,079 μs (93.67% GC) | 1,088 μs (0.00% GC) | Persistent is **~233x faster** |
+| Size: 100,000 / Updates: 1,000 | 8,314,819 μs (96.33% GC) | 1,236 μs (0.00% GC) | Persistent is **~6,727x faster** |
+
+**Time-Travel Analysis:**
+* **The GC Memory Wall:** As the dataset scales, maintaining full copies of standard arrays causes catastrophic memory pressure. At 100,000 elements, the Pharo VM spends **96.33%** of its execution time simply fighting the Garbage Collector to manage the massive influx of duplicated memory.
+* **Structural Sharing Dominance:** The persistent array executes the exact same 1,000 historical updates at scale with **0.00% GC overhead**, operating over 6,700 times faster. This empirically proves that structural sharing is the only viable architecture for version history and time-travel mechanics.
+
+> **Reproducibility:** You can recreate this exact stress test to watch the standard array hit the memory wall on your own hardware. Execute the `runTimeTravelComparisonSize:updates:` method in the `CTPersistentArrayBenchmark` class to run the comparison.
 
 ---
 
